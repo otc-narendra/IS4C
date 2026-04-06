@@ -433,6 +433,33 @@ it won\'t *do* anything.
             $user = new ProductUserModel($this->connection);
             $user->upc($this->upc());
             $user->delete();
+
+            // Remove orphaned references in tables that key on UPC.
+            // Each table is guarded by tableExists() so this is safe on
+            // minimal installations that don't have every optional table.
+            //
+            // Not included: InventoryCounts — historical physical-count
+            // records that installations may want to retain for audit purposes.
+            $orphanTables = array(
+                'vendorItems',          // vendor catalog entries
+                'batchList',            // sale/pricing batch entries
+                'batchBarcodes',        // batch-specific barcodes
+                'batchUpdate',          // lane-sync queue
+                'batchCutPaste',        // batch staging records
+                'InventoryCache',       // cached on-hand values
+                'shelftags',            // queued shelf-tag print jobs
+                'upcLike',              // UPC aliases
+                'FloorSectionProductMap', // floor-section placement
+                'SignProperties',       // custom sign properties
+            );
+            foreach ($orphanTables as $table) {
+                if ($this->connection->tableExists($table)) {
+                    $delP = $this->connection->prepare(
+                        "DELETE FROM {$table} WHERE upc=?"
+                    );
+                    $this->connection->execute($delP, array($this->upc()));
+                }
+            }
         }
 
         return $try;
