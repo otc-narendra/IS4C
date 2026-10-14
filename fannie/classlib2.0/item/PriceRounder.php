@@ -40,11 +40,14 @@ class PriceRounder
     */
     public function round($price, $extra_parameters=array())
     {
-        // remove the thousandths place without rounding
-        $price = floor($price * 100)/100;
+        // remove the thousandths place without rounding, working in
+        // whole cents. Float fractions are inexact (3.39 - 3 is
+        // 0.39000000000000012) so they can't be compared to the endings
+        $cents = (int)floor(round($price * 1000) / 10);
+        $price = $cents / 100;
 
         $wholeP = floor($price);
-        $fractionP = $price - $wholeP;
+        $fractionC = $cents % 100;
 
         // acceptible price endings by $endingCaps
         $endings = array(
@@ -66,12 +69,13 @@ class PriceRounder
                 foreach ($endings as $k => $endArray) {
                     if ($k == $level ) {
                         foreach ($endArray as $end) {
-                            if ($fractionP < $end) {
+                            // a price already on an acceptable ending is kept as-is
+                            if ($fractionC <= round($end * 100)) {
                                 /*
 
                                     2024-02-15 WFC we are no longer rounding down until further notice
 
-                                if ($fractionP <= $specialRound[$level] && $wholeP > 0) {
+                                if ($fractionC <= round($specialRound[$level] * 100) && $wholeP > 0) {
                                     // special round down to nearest whole.99
                                     $wholeP--;
                                     $end = 0.99;

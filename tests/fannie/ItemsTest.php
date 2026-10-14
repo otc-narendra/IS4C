@@ -112,6 +112,34 @@ class ItemsTest extends PHPUnit_Framework_TestCase
         $this->assertEquals(false, $saved, 'Accepted invalid input');
     }
 
+    public function testPriceRounder()
+    {
+        $rounder = new COREPOS\Fannie\API\item\PriceRounder();
+        $cases = array(
+            // already on an acceptable ending: unchanged
+            '0.29' => 0.29,
+            '1.29' => 1.29,
+            '3.39' => 3.39,
+            '4.49' => 4.49,
+            '5.99' => 5.99,
+            '7.39' => 7.39,
+            '12.99' => 12.99,
+            // rounded up to the next acceptable ending
+            '3.37' => 3.39,
+            '4.01' => 4.19,
+            '4.60' => 4.69,
+            '7.20' => 7.39,
+            '8.70' => 8.99,
+            '16.40' => 16.99,
+            // thousandths are dropped, not rounded
+            '4.491' => 4.49,
+            '1.159' => 1.19,
+        );
+        foreach ($cases as $price => $expect) {
+            $this->assertEquals($expect, $rounder->round((float)$price), "round({$price})", 0.001);
+        }
+    }
+
     public function testItemMargin()
     {
         $config = FannieConfig::factory();
