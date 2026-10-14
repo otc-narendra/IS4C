@@ -77,6 +77,79 @@ var batchEdit = (function ($) {
         });
     };
 
+    // Only the latest % off request may fill in the sale price
+    var pctRequest = 0;
+
+    mod.pctToPrice = function(force)
+    {
+        var pctField = $('#add-item-pct');
+        var pct = $.trim(pctField.val());
+        // Enter calculates, then the blur that follows fires change for
+        // the same value; don't recalculate over a price being typed
+        if (!force && pct === pctField.data('lastPct')) {
+            return;
+        }
+        pctField.data('lastPct', pct);
+        pctField.data('raw', '');
+        var request = ++pctRequest;
+        if (pct === '') {
+            mod.showActualPct();
+            return;
+        }
+        $.ajax({
+            type: 'get',
+            data: { roundPct: pct, normal: pctField.data('normal') },
+            dataType: 'json'
+        }).done(function(resp) {
+            if (request !== pctRequest) {
+                return;
+            }
+            if (resp.error) {
+                // don't leave a price from an earlier % ready to submit
+                $('#add-item-price').val('');
+                $('#add-item-actual-pct').text(resp.error).css('color', 'red');
+                return;
+            }
+            pctField.data('raw', resp.raw);
+            $('#add-item-price').val(resp.price);
+            mod.showActualPct();
+            $('#add-item-price').focus();
+        });
+    };
+
+    // When rounding moved the price away from the requested % off,
+    // show the discount the sale price actually gives
+    mod.showActualPct = function()
+    {
+        var span = $('#add-item-actual-pct');
+        var pctField = $('#add-item-pct');
+        var normal = parseFloat(pctField.data('normal'));
+        var price = parseFloat($('#add-item-price').val());
+        var raw = pctField.data('raw');
+        span.text('').css('color', '');
+        if ($.trim(pctField.val()) === '' || isNaN(price) || isNaN(normal) || normal <= 0) {
+            return;
+        }
+        if (price >= normal) {
+            span.text('(not below normal price)').css('color', 'red');
+            return;
+        }
+        if (raw !== '' && parseFloat(raw).toFixed(2) === price.toFixed(2)) {
+            return;
+        }
+        var actual = (1 - price / normal) * 100;
+        span.text('(' + (Math.round(actual * 10) / 10) + '% off)');
+    };
+
+    mod.pctKeypress = function(e)
+    {
+        if (e.which == 13) {
+            mod.pctToPrice(true);
+            return false;
+        }
+        return true;
+    };
+
     mod.generateTags = function(batchID)
     {
         $.ajax({

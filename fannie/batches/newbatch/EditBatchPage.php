@@ -80,10 +80,37 @@ class EditBatchPage extends FannieRESTfulPage
             'post<noteID><batchNotes>',
             'post<partialID>', 'post<editBatch>',
             'post<editDate>',
-            'post<editVendorID>'
+            'post<editVendorID>',
+            'get<roundPct><normal>'
         );
 
         return parent::preprocess();
+    }
+
+    /**
+      Compute a sale price as a percentage off the normal price,
+      rounded with the store's PriceRounder rules. The unrounded
+      price is returned too so the page can show when rounding
+      changed the discount.
+    */
+    protected function get_roundPct_normal_handler()
+    {
+        $pct = trim($this->roundPct);
+        $normal = trim($this->normal);
+        if (!is_numeric($pct) || !is_numeric($normal) || $pct <= 0 || $pct >= 100 || $normal <= 0) {
+            echo json_encode(array('error' => 'Enter a percentage between 0 and 100'));
+            return false;
+        }
+
+        $raw = round($normal * (1 - $pct / 100), 2);
+        $rounder = new \COREPOS\Fannie\API\item\PriceRounder();
+        $rounded = (float)$rounder->round($raw);
+        echo json_encode(array(
+            'price' => sprintf('%.2f', $rounded),
+            'raw' => sprintf('%.2f', $raw),
+        ));
+
+        return false;
     }
 
     protected function post_editVendorID_handler()
@@ -1026,8 +1053,13 @@ HTML;
     <label>ID</label>: {$upc}
     <label>Description</label>: {$description}
     <label>Normal price</label>: {$price}
+    <label style="margin-left: 1.5em;">% off</label>
+    <input class="form-control" type=text id=add-item-pct size=3 data-normal="{$price}"
+        onchange="batchEdit.pctToPrice();" onkeypress="return batchEdit.pctKeypress(event);" />
     <label>Sale price</label>
-    <input class="form-control" type=text id=add-item-price name=price size=5 />
+    <input class="form-control" type=text id=add-item-price name=price size=5
+        oninput="batchEdit.showActualPct();" />
+    <span id="add-item-actual-pct" class="text-muted"></span>
     <button type=submit value=Add class="btn btn-default">Add</button>
 </form>
 HTML;
@@ -1751,7 +1783,7 @@ HTML;
     {
         $this->addScript($this->config->get('URL') . 'src/javascript/chosen/chosen.jquery.min.js');
         $this->addCssFile($this->config->get('URL') . 'src/javascript/chosen/bootstrap-chosen.css');
-        $this->addScript('edit.js?20180524');
+        $this->addScript('edit.js?20261014b');
         $this->addCssFile('index.css');
         $this->addOnloadCommand('$(\'#addItemUPC\').focus()');
         $this->addOnloadCommand("enableLinea('#addItemUPC');\n");
